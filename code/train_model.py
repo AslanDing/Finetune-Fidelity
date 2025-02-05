@@ -28,7 +28,7 @@ device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
 
 model = resnet18(100)
 model = ResNet9(3, 100)
-# state_dict = torch.load('../../data/cifar100/0920/resnet-9-finetune.pth',map_location='cpu')
+# state_dict = torch.load('../../data/cifar100/IG/resnet-9.pth',map_location='cpu')
 # model.load_state_dict(state_dict['net'])
 model.to(device)
 
@@ -161,8 +161,8 @@ def train():
             trigger_times = 0
             dicts = {'net': model.state_dict(),
                      'acc': val_accuracy}
-            # torch.save(dicts, '../../data/cifar100/0920/resnet-18-finetune.pth')
-            torch.save(dicts, '../../data/cifar100/0924/resnet-18.pth')
+            # torch.save(dicts, '../../data/cifar100/IG/resnet-9-finetune.pth')
+            torch.save(dicts, '../../data/cifar100/IG/resnet-9.pth')
 
 
 

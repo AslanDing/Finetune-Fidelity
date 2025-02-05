@@ -18,6 +18,7 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from captum.attr import IntegratedGradients
+from captum.attr import NoiseTunnel
 
 from resnet import resnet18,resnet50,ResNet9
 
@@ -108,6 +109,50 @@ def explain_ori_model_cam():
         explanation_maps.append(heatmap)
     explanation_maps = np.stack(explanation_maps)
     np.save('../../data/cifar100/LayerCAM/resnet-9-explanations.npy' ,explanation_maps)
+
+def explain_ori_model_IGSQ():
+    model = ResNet9(3, 100)
+    state_dict = torch.load('../../data/cifar100/IG/resnet-9.pth',map_location='cpu')
+    model.load_state_dict(state_dict['net'])
+    model.to(device)
+    model.eval()
+    
+    ig = IntegratedGradients(model)
+    nt = NoiseTunnel(ig)
+
+    explanation_maps = []
+    count = 0
+    for inputs, labels in tqdm(val_loader):
+
+        inputs, labels = inputs.to(device), labels.to(device)
+        # heatmap,idx = generate_gradcam(model,inputs)
+
+        attributions = nt.attribute(inputs, n_samples=10, nt_type='smoothgrad_sq',
+                                                    target=labels.to(torch.int))
+        
+        
+        attributions = attributions.squeeze().cpu().detach().numpy()
+        explanation_maps.append(attributions)
+
+        # image = inputs.cpu().detach().numpy()[0]
+        # image = image.transpose([1,2,0])
+        # image = image* np.array([0.229, 0.224, 0.225]).reshape(1,1,3) + np.array([0.485, 0.456, 0.406]).reshape(1,1,3)
+        # image = np.clip(image,0,1)
+        # # plt.imsave('./image.jpg',image)
+        # # # cv
+        # attributions = attributions.sum(axis=0)
+        # heatmap = (attributions - np.min(attributions)) / (np.max(attributions) - np.min(attributions) + 1e-10)
+
+        # image = image[:,:,::-1]
+        # cv2.imwrite(f'image_{count}_ori.jpg',(image*255).astype(np.uint8))
+        # heatmap_img = cv2.applyColorMap((heatmap*255).astype(np.uint8), cv2.COLORMAP_JET)
+        # super_imposed_img = cv2.addWeighted(heatmap_img, 0.5, (image*255).astype(np.uint8), 0.5, 0)
+        # cv2.imwrite(f'weighted_image_{count}_ori.jpg',super_imposed_img)
+
+        # count += 1
+
+    explanation_maps = np.stack(explanation_maps)
+    np.save('../../data/cifar100/IG/resnet-9-explanations.npy' ,explanation_maps)
 
 def explain_ori_model_vis():
     model = ResNet9(3, 100)

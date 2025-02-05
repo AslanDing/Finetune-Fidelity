@@ -21,8 +21,8 @@ import matplotlib.pyplot as plt
 
 import random
 
-from scipy.sparse import lil_matrix, csc_matrix
-from scipy.sparse.linalg import spsolve
+# from scipy.sparse import lil_matrix, csc_matrix
+# from scipy.sparse.linalg import spsolve
 import math
 
 from resnet import resnet18,resnet50,ResNet9
@@ -197,7 +197,7 @@ def ours_random_MoRF(net, inputs, targets,
     score_vector = (1 - scores).reshape(-1)
     score_indexes = np.argsort(score_vector) 
 
-    all_pexils = score_vector.shape[0]
+    all_pxiels = score_vector.shape[0]
     interval = glob_interval  
     for i in sparsity:
         masks = np.ones_like(score_vector)
@@ -207,8 +207,8 @@ def ours_random_MoRF(net, inputs, targets,
 
         ratio = robust_ratio
         if use_max:
-            if expl_size*robust_ratio> max_ratio * all_pexils:
-                ratio = max_ratio * all_pexils/ expl_size
+            if expl_size*robust_ratio> max_ratio * all_pxiels:
+                ratio = max_ratio * all_pxiels/ expl_size
 
         output = samples(inputs, masks, i,ratio)
         acc_lists.append(output.item())
@@ -249,7 +249,7 @@ def ours_random_LeRF(net, inputs, targets,
     score_indexes = np.argsort(score_vector)  
 
     interval = glob_interval  
-    all_pexils = score_vector.shape[0]
+    all_pxiels = score_vector.shape[0]
     for i in sparsity:
         masks = np.ones_like(score_vector)
         expl_size = min(int(interval * (i + 1)), scores.shape[0])
@@ -258,8 +258,8 @@ def ours_random_LeRF(net, inputs, targets,
 
         ratio = robust_ratio
         if use_max:
-            if expl_size*robust_ratio> max_ratio * all_pexils:
-                ratio = max_ratio * all_pexils/ expl_size
+            if expl_size*robust_ratio> max_ratio * all_pxiels:
+                ratio = max_ratio * all_pxiels/ expl_size
 
         output = samples(inputs, masks, i,ratio)
         acc_lists.append(output.item())
@@ -267,116 +267,112 @@ def ours_random_LeRF(net, inputs, targets,
     return acc_lists
 
 
-global_dir = '../../data/cifar100/0923/'
+global_dir = '../../data/cifar100/IG/'
+explanation_name_list= [global_dir+'resnet-9-explanations_random0.000000_%d.npy',
+                        global_dir+'resnet-9-explanations_random0.200000_%d.npy',
+                        global_dir + 'resnet-9-explanations_random0.400000_%d.npy',
+                        global_dir + 'resnet-9-explanations_random0.600000_%d.npy',
+                        global_dir + 'resnet-9-explanations_random0.800000_%d.npy',
+                        global_dir + 'resnet-9-explanations_random1.000000_%d.npy']
+
+finetune_explanation_name_list= [global_dir+'resnet-9-finetune-explanations_random0.000000_%d.npy',
+                        global_dir+'resnet-9-finetune-explanations_random0.200000_%d.npy',
+                        global_dir + 'resnet-9-finetune-explanations_random0.400000_%d.npy',
+                        global_dir + 'resnet-9-finetune-explanations_random0.600000_%d.npy',
+                        global_dir + 'resnet-9-finetune-explanations_random0.800000_%d.npy',
+                        global_dir + 'resnet-9-finetune-explanations_random1.000000_%d.npy']
 
 def evaluate_ori_ori(seed):
     model = ResNet9(3, 100)
     state_dict = torch.load(global_dir + 'resnet-9.pth',map_location='cpu')
     model.load_state_dict(state_dict['net'])
-    # model = resnet18_init
     model.to(device)
     model.eval()
     net = model
 
-    method_lists = ["ig"]
-    for method in method_lists:
-        path = global_dir + "resnet-9-explanation.npy"
+    for explantion_name in explanation_name_list:
+
+        path = explantion_name%seed
+        if not os.path.exists(path):
+            continue
+
+        save_path = path.replace('.npy','_ori_model_ori.npy')
+        if os.path.exists(save_path):
+            continue
+
         explaination_list = np.load(path)
-        for random in random_list:
+        acc_lists_LeRF = []
+        acc_lists_MoRF = []
+        count = 0
+        for batch_idx, (inputs, targets) in tqdm(enumerate(val_loader)):
+            scores = explaination_list[count].copy()
+            scores = scores.reshape(-1)
 
-            if os.path.exists(global_dir+ "results_ori_model_ori_%s_random_%.2f_seed%d.npy"%(method,random,seed)):
-                continue
+            true_or_false = ori_LeRF(net, inputs.clone(), targets.clone(), scores=scores)
+            acc_lists_LeRF.append(true_or_false)
+            true_or_false = ori_MoRF(net, inputs.clone(), targets.clone(), scores=scores)
+            acc_lists_MoRF.append(true_or_false)
+            count += 1
 
-            acc_lists_LeRF = []
-            acc_lists_MoRF = []
-            count = 0
-
-            for batch_idx, (inputs, targets) in tqdm(enumerate(val_loader)):
-                scores = explaination_list[count].copy()
-                scores = scores.sum(axis = 0)
-                scores = scores.reshape(-1)
-
-                num = int(random * scores.shape[0])
-                select = np.arange(scores.shape[0])
-                idx_select = np.random.choice(select, num, replace=False)
-                scores[idx_select] = np.random.permutation(scores[idx_select])
-
-                true_or_false = ori_LeRF(net, inputs.clone(), targets.clone(), scores=scores)
-                acc_lists_LeRF.append(true_or_false)
-                true_or_false = ori_MoRF(net, inputs.clone(), targets.clone(), scores=scores)
-                acc_lists_MoRF.append(true_or_false)
-                count += 1
-
-            acc_lists_LeRF = np.array(acc_lists_LeRF)
-            acc_lists_MoRF = np.array(acc_lists_MoRF)
-            acc_LeRF = acc_lists_LeRF.mean(axis=0)
-            acc_MoRF = acc_lists_MoRF.mean(axis=0)
-            print(acc_LeRF)
-            print(acc_MoRF)
-            np.save(
-                global_dir + "results_ori_model_ori_%s_random_%.2f_seed%d" % (method, random, seed),
-                [acc_LeRF, acc_MoRF,acc_lists_LeRF,acc_lists_MoRF])
-
+        acc_lists_LeRF = np.array(acc_lists_LeRF)
+        acc_lists_MoRF = np.array(acc_lists_MoRF)
+        acc_LeRF = acc_lists_LeRF.mean(axis=0)
+        acc_MoRF = acc_lists_MoRF.mean(axis=0)
+        print(acc_LeRF)
+        print(acc_MoRF)
+        np.save( save_path,[acc_LeRF, acc_MoRF,acc_lists_LeRF,acc_lists_MoRF])
 
 def evaluation_ori_rfid(seed, robust_ratio_MoRF=0.5, robust_ratio_LeRF=0.5):
     model = ResNet9(3, 100)
     state_dict = torch.load(global_dir + 'resnet-9.pth', map_location='cpu')
     model.load_state_dict(state_dict['net'])
-    # model = resnet18_init
     model.to(device)
     model.eval()
     net = model
 
-    method_lists = ["ig"]
-    for method in method_lists:
-        print(method)
-        path = global_dir + "resnet-9-explanation.npy"
+    for explantion_name in explanation_name_list:
+
+        path = explantion_name % seed
+        if not os.path.exists(path):
+            continue
+
+        save_path = path.replace('.npy', '_ori_model_rfid.npy')
+        if os.path.exists(save_path):
+            continue
+
         explaination_list = np.load(path)
-        for random in random_list:
 
-            if os.path.exists(global_dir+"results_ori_model_ours_MoRF%.2f_LeRF%.2f_%s_random_%.2f_seed%d.npy"%
-                    (robust_ratio_MoRF,robust_ratio_LeRF,method,random,seed)):
-                continue
 
-            # point evaluation
-            acc_lists_LeRF = []
-            acc_lists_MoRF = []
-            count = 0
-            for batch_idx, (inputs, targets) in tqdm(enumerate(val_loader)):
-                scores = explaination_list[count].copy()
-                scores = scores.sum(axis=0)
-                scores = scores.reshape(-1)
+        # point evaluation
+        acc_lists_LeRF = []
+        acc_lists_MoRF = []
+        count = 0
+        for batch_idx, (inputs, targets) in tqdm(enumerate(val_loader)):
+            scores = explaination_list[count].copy()
+            scores = scores.reshape(-1)
 
-                num = int(random * scores.shape[0])
-                select = np.arange(scores.shape[0])
-                idx_select = np.random.choice(select, num, replace=False)
-                scores[idx_select] = np.random.permutation(scores[idx_select])
 
-                true_or_false = ours_random_LeRF(net, inputs.clone(), targets.clone(),
-                                                 robust_ratio=robust_ratio_LeRF,use_max=False,
-                                                 scores=scores)
-                acc_lists_LeRF.append(true_or_false)
-                true_or_false = ours_random_MoRF(net, inputs.clone(), targets.clone(),
-                                                 robust_ratio=robust_ratio_MoRF,use_max=False,
-                                                 scores=scores)
-                acc_lists_MoRF.append(true_or_false)
-                count += 1
+            true_or_false = ours_random_LeRF(net, inputs.clone(), targets.clone(),
+                                             robust_ratio=robust_ratio_LeRF,use_max=False,
+                                             scores=scores)
+            acc_lists_LeRF.append(true_or_false)
+            true_or_false = ours_random_MoRF(net, inputs.clone(), targets.clone(),
+                                             robust_ratio=robust_ratio_MoRF,use_max=False,
+                                             scores=scores)
+            acc_lists_MoRF.append(true_or_false)
+            count += 1
 
-            acc_lists_LeRF = np.array(acc_lists_LeRF)
-            acc_lists_MoRF = np.array(acc_lists_MoRF)
-            acc_LeRF = acc_lists_LeRF.mean(axis=0)
-            acc_MoRF = acc_lists_MoRF.mean(axis=0)
-            print(acc_LeRF)
-            print(acc_MoRF)
-            np.save(
-                global_dir + "results_ori_model_ours_MoRF%.2f_LeRF%.2f_%s_random_%.2f_seed%d"%
-                    (robust_ratio_MoRF,robust_ratio_LeRF,method,random,seed),[acc_LeRF,acc_MoRF])
+        acc_lists_LeRF = np.array(acc_lists_LeRF)
+        acc_lists_MoRF = np.array(acc_lists_MoRF)
+        acc_LeRF = acc_lists_LeRF.mean(axis=0)
+        acc_MoRF = acc_lists_MoRF.mean(axis=0)
+        print(acc_LeRF)
+        print(acc_MoRF)
+        np.save(
+            save_path,[acc_LeRF,acc_MoRF,acc_lists_LeRF,acc_lists_MoRF])
 
 def evaluation_finetune_ffid(seed, robust_ratio_MoRF=0.5, robust_ratio_LeRF=0.5,threshold=0.1):
     model = ResNet9(3, 100)
-    # resnet18_init = models.resnet18(pretrained=True)
-    # num_ftrs = resnet18_init.fc.in_features
-    # resnet18_init.fc = nn.Linear(num_ftrs, 100)
     state_dict = torch.load(global_dir + 'resnet-9-finetune.pth', map_location='cpu')
     model.load_state_dict(state_dict['net'])
     # model = resnet18_init
@@ -384,54 +380,46 @@ def evaluation_finetune_ffid(seed, robust_ratio_MoRF=0.5, robust_ratio_LeRF=0.5,
     model.eval()
     net = model
 
-    method_lists = ["ig"]
-    for method in method_lists:
-        print(method)
-        path = global_dir + "resnet-9-finetune-explanation.npy"
+    for explantion_name in finetune_explanation_name_list:
+        path = explantion_name % seed
+        if not os.path.exists(path):
+            continue
+
+        save_path = path.replace('.npy', '_finetune_model_ffid.npy')
+        if os.path.exists(save_path):
+            continue
+
         explaination_list = np.load(path)
-        for random in random_list:
 
-            if os.path.exists(global_dir + "results_finetune_model_ours_MoRF%.2f_LeRF%.2f_threshold%.2f_%s_random_%.2f_seed%d" %
-                (robust_ratio_MoRF, robust_ratio_LeRF, threshold, method, random, seed)):
-                continue
-
-            # point evaluation
-            acc_lists_LeRF = []
-            acc_lists_MoRF = []
-            count = 0
-            for batch_idx, (inputs, targets) in tqdm(enumerate(val_loader)):
-                scores = explaination_list[count].copy()
-                scores = scores.sum(axis=0)
-                scores = scores.reshape(-1)
-
-                num = int(random * scores.shape[0])
-                select = np.arange(scores.shape[0])
-                idx_select = np.random.choice(select, num, replace=False)
-                scores[idx_select] = np.random.permutation(scores[idx_select])
-
-                true_or_false = ours_random_LeRF1(net, inputs.clone(), targets.clone(),
-                                                 robust_ratio=robust_ratio_LeRF,use_max=True,
-                                                 scores=scores)
-                acc_lists_LeRF.append(true_or_false)
-                true_or_false = ours_random_MoRF1(net, inputs.clone(), targets.clone(),
-                                                 robust_ratio=robust_ratio_MoRF,use_max=True,
-                                                 scores=scores)
-                acc_lists_MoRF.append(true_or_false)
-                count += 1
-
-            acc_lists_LeRF = np.array(acc_lists_LeRF)
-            acc_lists_MoRF = np.array(acc_lists_MoRF)
-            acc_LeRF = acc_lists_LeRF.mean(axis=0)
-            acc_MoRF = acc_lists_MoRF.mean(axis=0)
-            print(acc_LeRF)
-            print(acc_MoRF)
-            np.save(
-                global_dir + "results_finetune_model_ours_MoRF%.2f_LeRF%.2f_threshold%.2f_%s_random_%.2f_seed%d" %
-                (robust_ratio_MoRF, robust_ratio_LeRF, threshold, method, random, seed),
-                [acc_LeRF, acc_MoRF, acc_lists_LeRF, acc_lists_MoRF])
+        # point evaluation
+        acc_lists_LeRF = []
+        acc_lists_MoRF = []
+        count = 0
+        for batch_idx, (inputs, targets) in tqdm(enumerate(val_loader)):
+            scores = explaination_list[count].copy()
+            scores = scores.reshape(-1)
 
 
+            true_or_false = ours_random_LeRF(net, inputs.clone(), targets.clone(),
+                                             robust_ratio=robust_ratio_LeRF,use_max=True,
+                                             scores=scores)
+            acc_lists_LeRF.append(true_or_false)
+            true_or_false = ours_random_MoRF(net, inputs.clone(), targets.clone(),
+                                             robust_ratio=robust_ratio_MoRF,use_max=True,
+                                             scores=scores)
+            acc_lists_MoRF.append(true_or_false)
+            count += 1
 
+        acc_lists_LeRF = np.array(acc_lists_LeRF)
+        acc_lists_MoRF = np.array(acc_lists_MoRF)
+        acc_LeRF = acc_lists_LeRF.mean(axis=0)
+        acc_MoRF = acc_lists_MoRF.mean(axis=0)
+        print(acc_LeRF)
+        print(acc_MoRF)
+        np.save(
+            save_path,
+            [acc_LeRF, acc_MoRF, acc_lists_LeRF, acc_lists_MoRF])
+        
 if __name__ == "__main__":
     for i in range(0,5):
         init_dl_program(device, seed=i)
