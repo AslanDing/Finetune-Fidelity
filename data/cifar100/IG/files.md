@@ -1,1 +1,1 @@
-We provide the files of cifar100 in our paper for reproduction. Please download the zip file from google drive [[link]](https://drive.google.com/file/d/1gaNQ8oVwbmeJQd4ZWhMtT4k-CuSANLlw/view?usp=sharing)
+We provide the files of cifar100 in our paper for reproduction. Please download the zip file from google drive [[link]](https://drive.google.com/file/d/176xRtn3ryGg0qwGUK1Se1cIsnn9dIEO3/view?usp=drive_link)

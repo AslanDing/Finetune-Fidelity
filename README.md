@@ -17,7 +17,7 @@
 - Train and finetune the classification model. During finetuning, please use random deletion random augmenation with ratio $\beta$. We provide our [solution](./code/train_model.py) for these task. 
 - Obtain initial explanations, we provide the [examples](./code/explain_model.py) of CAMs and IGs. Generate various noise degraded explanations. 
 - [Evaluation](./code/evaluation_model.py)
-- We also provide the results of cifar100 in [google drive](https://drive.google.com/file/d/1gaNQ8oVwbmeJQd4ZWhMtT4k-CuSANLlw/view?usp=sharing)
+- We also provide the results of cifar100 in [google drive](https://drive.google.com/file/d/176xRtn3ryGg0qwGUK1Se1cIsnn9dIEO3/view?usp=drive_link)
 
 
 ## Environments & Libraries
